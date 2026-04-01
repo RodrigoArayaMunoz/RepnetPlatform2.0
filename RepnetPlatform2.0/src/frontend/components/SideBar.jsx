@@ -7,6 +7,8 @@ import {
   ChevronDown,
   ChevronRight,
   FileSpreadsheet,
+  RefreshCcw,
+  History,
   Ban,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
@@ -15,29 +17,24 @@ import "../styles/SideBar.css";
 const navItems = [
   {
     key: "compatibilidades",
-    label: "COMPATIBILIDADES",
+    label: "PROCESOS",
     icon: Boxes,
     children: [
       {
         to: "/compatibilidades/carga-masiva",
-        label: "Carga Masiva de Compatibilidades",
-        icon: FileSpreadsheet,
-      },
-      {
-        to: "/compatibilidades/no-compatibilidades",
-        label: "Informar No Compatibilidades",
-        icon: Ban,
+        label: "Sincronización de Procesos",
+        icon: RefreshCcw,
       },
     ],
   },
   {
     key: "actualizaciones",
-    label: "ACTUALIZACIONES",
-    icon: BadgeDollarSign,
+    label: "HISTORIAL",
+    icon: History,
     children: [
       {
         to: "/actualizaciones/precios-stock",
-        label: "Actualizaciones de Precios y Stock",
+        label: "Historial de Procesos",
         icon: FileSpreadsheet,
       },
     ],
