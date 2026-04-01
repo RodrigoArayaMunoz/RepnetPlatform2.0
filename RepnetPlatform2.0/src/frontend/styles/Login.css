@@ -462,3 +462,17 @@ body {
     min-height: 46px;
   }
 }
+
+.auth-message {
+  margin: 10px 0 0;
+  font-size: 14px;
+  text-align: left;
+}
+
+.auth-message.error {
+  color: #d64545;
+}
+
+.auth-message.success {
+  color: #1f9d55;
+}

@@ -1,5 +1,8 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./styles/Login.css";
-import loginVisual from "../assets/repnetmercadolibre_logo.png"; // ajusta esta ruta si cambia
+import loginVisual from "../assets/repnetmercadolibre_logo.png";
+import { supabase } from "../lib/supabase";
 
 const MailIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="input-icon" aria-hidden="true">
@@ -43,9 +46,58 @@ const LockIcon = () => (
 );
 
 export default function Login() {
-  const handleSubmit = (e) => {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Aquí conectas tu lógica de login
+    setErrorMsg("");
+    setSuccessMsg("");
+    setLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    //setSuccessMsg("Login correcto. Redirigiendo...");
+    
+    setTimeout(() => {
+      navigate("/menu");
+    }, 1500);
+
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setErrorMsg("Ingresa tu correo primero para recuperar la contraseña.");
+      return;
+    }
+
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "http://localhost:5173/reset-password",
+    });
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    setSuccessMsg("Te enviamos un correo para restablecer tu contraseña.");
   };
 
   return (
@@ -64,7 +116,6 @@ export default function Login() {
         <section className="login-right">
           <div className="login-card">
             <div className="login-card-content">
-
               <form className="login-form" onSubmit={handleSubmit}>
                 <div className="input-group">
                   <span className="icon-wrapper">
@@ -76,6 +127,8 @@ export default function Login() {
                     placeholder="Usuario"
                     autoComplete="email"
                     required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
 
@@ -89,16 +142,25 @@ export default function Login() {
                     placeholder="Password"
                     autoComplete="current-password"
                     required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
 
-                <button type="submit" className="login-btn">
-                  Ingresar
+                {errorMsg && <p className="auth-message error">{errorMsg}</p>}
+                {successMsg && <p className="auth-message success">{successMsg}</p>}
+
+                <button type="submit" className="login-btn" disabled={loading}>
+                  {loading ? "Ingresando..." : "Ingresar"}
                 </button>
 
-                <button type="button" className="forgot-link">
+                {/* <button
+                  type="button"
+                  className="forgot-link"
+                  onClick={handleForgotPassword}
+                >
                   ¿Olvidaste tu contraseña?
-                </button>
+                </button>*/}
               </form>
             </div>
           </div>

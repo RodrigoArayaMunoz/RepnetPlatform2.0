@@ -9,8 +9,8 @@ import {
   FileSpreadsheet,
   Ban,
 } from "lucide-react";
-import logo from "../../../public/logo.png";
-import "../styles/Sidebar.css";
+import logo from "../../assets/repnetsolo_logo.png";
+import "../styles/SideBar.css";
 
 const navItems = [
   {
