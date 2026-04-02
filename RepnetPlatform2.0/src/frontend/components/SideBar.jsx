@@ -15,29 +15,29 @@ import "../styles/SideBar.css";
 
 const navItems = [
   {
-    key: "compatibilidades",
+    key: "procesos",
     label: "PROCESOS",
     icon: Boxes,
     children: [
       {
-        to: "/compatibilidades/carga-masiva",
+        to: "/menu/procesos/sincronizacion",
         label: "Sincronización de Procesos",
         icon: RefreshCcw,
       },
     ],
   },
-  {
-    key: "actualizaciones",
+  /*{
+    key: "historial",
     label: "HISTORIAL",
     icon: History,
     children: [
       {
-        to: "/actualizaciones/precios-stock",
+        to: "/menu/historial/procesos",
         label: "Historial de Procesos",
         icon: FileSpreadsheet,
       },
     ],
-  },
+  },*/
 ];
 
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
@@ -47,8 +47,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const [connectingMl, setConnectingMl] = useState(false);
 
   const getMenuStateFromPath = (pathname) => ({
-    compatibilidades: pathname.startsWith("/compatibilidades"),
-    actualizaciones: pathname.startsWith("/actualizaciones"),
+    procesos: pathname.startsWith("/menu/procesos"),
+    historial: pathname.startsWith("/menu/historial"),
   });
 
   const [openMenus, setOpenMenus] = useState(
@@ -61,10 +61,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({
-      compatibilidades:
-        key === "compatibilidades" ? !prev.compatibilidades : false,
-      actualizaciones:
-        key === "actualizaciones" ? !prev.actualizaciones : false,
+      procesos:
+        key === "procesos" ? !prev.procesos : false,
+      historial:
+        key === "historial" ? !prev.historial : false,
     }));
   };
 
