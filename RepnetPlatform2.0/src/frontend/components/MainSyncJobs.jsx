@@ -1,68 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import "../styles/MainSyncJobs.css";
+import { supabase } from "../../lib/supabase.js";
 
 export default function MainSyncJobs() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [now, setNow] = useState(new Date());
-
-  const [processRows] = useState([
-    {
-      id: 1,
-      archivo: "20260225_ProductosNV.xlsx",
-      fecha: "02-04-2026 11:26:35",
-      procesadoPor: "Juan Pérez",
-      estado: "Completado",
-    },
-    {
-      id: 2,
-      archivo: "20260224_StockGeneral.xlsx",
-      fecha: "02-04-2026 10:14:12",
-      procesadoPor: "María Soto",
-      estado: "Pendiente",
-    },
-    {
-      id: 3,
-      archivo: "20260223_PreciosMarketplace.xlsx",
-      fecha: "02-04-2026 09:08:47",
-      procesadoPor: "Carlos Díaz",
-      estado: "Error",
-    },
-    {
-      id: 4,
-      archivo: "20260222_CatalogoBase.xlsx",
-      fecha: "01-04-2026 18:22:09",
-      procesadoPor: "Fernanda Ruiz",
-      estado: "Completado",
-    },
-    {
-      id: 5,
-      archivo: "20260221_ProductosNV.xlsx",
-      fecha: "01-04-2026 16:41:55",
-      procesadoPor: "Matías Rojas",
-      estado: "Completado",
-    },
-    {
-      id: 6,
-      archivo: "20260220_StockBodega.xlsx",
-      fecha: "01-04-2026 15:03:21",
-      procesadoPor: "Ana Torres",
-      estado: "Pendiente",
-    },
-    {
-      id: 7,
-      archivo: "20260219_PreciosFinales.xlsx",
-      fecha: "01-04-2026 12:50:03",
-      procesadoPor: "Pedro Gómez",
-      estado: "Error",
-    },
-    {
-      id: 8,
-      archivo: "20260218_ProductosML.xlsx",
-      fecha: "01-04-2026 11:11:44",
-      procesadoPor: "Daniela Castro",
-      estado: "Completado",
-    },
-  ]);
+  const [processRows, setProcessRows] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingTable, setIsLoadingTable] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -70,6 +15,10 @@ export default function MainSyncJobs() {
     }, 1000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    loadProcesses();
   }, []);
 
   const formattedDate = useMemo(() => {
@@ -85,7 +34,22 @@ export default function MainSyncJobs() {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
+      hour12: false,
     });
+  }, [now]);
+
+  const sqlDate = useMemo(() => {
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, [now]);
+
+  const sqlTime = useMemo(() => {
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
   }, [now]);
 
   const handleFileChange = (event) => {
@@ -93,18 +57,133 @@ export default function MainSyncJobs() {
     setSelectedFile(file);
   };
 
-  const handleSaveProcess = () => {
-    if (!selectedFile) {
-      alert("Debes seleccionar un archivo Excel antes de grabar el proceso.");
+  const formatTableDateTime = (fechaProceso, horaProceso) => {
+    if (!fechaProceso) return "-";
+
+    const [year, month, day] = fechaProceso.split("-");
+    const safeTime = horaProceso ? horaProceso.slice(0, 8) : "00:00:00";
+
+    return `${day}-${month}-${year} ${safeTime}`;
+  };
+
+  const mapProcessRow = (row) => ({
+    id: row.id,
+    procesoId: row.proceso_id,
+    archivo: row.archivo,
+    fecha: formatTableDateTime(row.fecha_proceso, row.hora_proceso),
+    procesadoPor: row.generado,
+    estado: row.estado,
+  });
+
+  const loadProcesses = async () => {
+    try {
+      setIsLoadingTable(true);
+
+      const { data, error } = await supabase
+        .from("procesos")
+        .select("id, proceso_id, archivo, fecha_proceso, hora_proceso, generado, estado")
+        .order("fecha_proceso", { ascending: false })
+        .order("hora_proceso", { ascending: false });
+
+      if (error) {
+        console.error("Error al cargar procesos:", error);
+        alert("No se pudo cargar el historial de procesos.");
+        return;
+      }
+
+      setProcessRows((data || []).map(mapProcessRow));
+    } catch (err) {
+      console.error("Error inesperado al cargar procesos:", err);
+      alert("Ocurrió un error al cargar los procesos.");
+    } finally {
+      setIsLoadingTable(false);
+    }
+  };
+
+const handleSaveProcess = async () => {
+  if (!selectedFile) {
+    alert("Debes seleccionar un archivo Excel antes de grabar el proceso.");
+    return;
+  }
+
+  try {
+    setIsSaving(true);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("Error obteniendo usuario autenticado:", userError);
+      alert("No se pudo obtener el usuario autenticado.");
       return;
     }
 
-    console.log("Archivo seleccionado:", selectedFile);
-    console.log("Fecha proceso:", formattedDate);
-    console.log("Hora proceso:", formattedTime);
+    if (!user?.email) {
+      alert("No se encontró el correo del usuario logeado.");
+      return;
+    }
 
-    alert("Proceso grabado correctamente.");
-  };
+    const fileExt = selectedFile.name.split(".").pop();
+    const safeFileName = selectedFile.name.replace(/\s+/g, "_");
+    const uniqueFileName = `${Date.now()}_${safeFileName}`;
+    const storagePath = `${user.id}/${uniqueFileName}`;
+    const bucketName = "excel-procesos";
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(storagePath, selectedFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Error subiendo archivo a Storage:", uploadError);
+      alert(`No se pudo subir el archivo: ${uploadError.message}`);
+      return;
+    }
+
+    const payload = {
+      archivo: selectedFile.name,
+      fecha_proceso: sqlDate,
+      hora_proceso: sqlTime,
+      generado: user.email,
+      estado: "Pendiente",
+      storage_bucket: bucketName,
+      storage_path: storagePath,
+    };
+
+    const { data, error } = await supabase
+      .from("procesos")
+      .insert([payload])
+      .select("id, proceso_id, archivo, fecha_proceso, hora_proceso, generado, estado, storage_bucket, storage_path")
+      .single();
+
+    if (error) {
+      console.error("Error al grabar proceso en tabla:", error);
+
+      // rollback simple: borrar archivo si el insert falló
+      await supabase.storage.from(bucketName).remove([storagePath]);
+
+      alert(`No se pudo grabar el proceso: ${error.message}`);
+      return;
+    }
+
+    setProcessRows((prev) => [mapProcessRow(data), ...prev]);
+    setSelectedFile(null);
+
+    const fileInput = document.querySelector(".main-sync-jobs__file-input");
+    if (fileInput) fileInput.value = "";
+
+    alert(`Proceso ${data.proceso_id} grabado correctamente.`);
+  } catch (err) {
+    console.error("Error inesperado al grabar proceso:", err);
+    alert("Ocurrió un error inesperado al grabar el proceso.");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const handleGenerateProcesses = () => {
     alert("Procesos generados correctamente.");
@@ -113,7 +192,7 @@ export default function MainSyncJobs() {
   const getStatusClass = (status) => {
     const normalized = status.toLowerCase();
 
-    if (normalized === "completado") {
+    if (normalized === "procesado" || normalized === "completado") {
       return "status-badge status-badge--success";
     }
 
@@ -130,8 +209,6 @@ export default function MainSyncJobs() {
 
   return (
     <div className="main-sync-jobs">
-      {/* <h1 className="main-sync-jobs__title">Sincronización de trabajos</h1> */}
-
       <div className="main-sync-jobs__card">
         <div className="main-sync-jobs__row">
           <div className="main-sync-jobs__field main-sync-jobs__field--file">
@@ -169,8 +246,9 @@ export default function MainSyncJobs() {
             type="button"
             className="main-sync-jobs__save-button"
             onClick={handleSaveProcess}
+            disabled={isSaving}
           >
-            Grabar Proceso
+            {isSaving ? "Grabando..." : "Grabar Proceso"}
           </button>
         </div>
       </div>
@@ -192,18 +270,32 @@ export default function MainSyncJobs() {
             </thead>
 
             <tbody>
-              {processRows.map((row) => (
-                <tr key={row.id}>
-                  <td title={row.archivo}>{row.archivo}</td>
-                  <td>{row.fecha}</td>
-                  <td>{row.procesadoPor}</td>
-                  <td>
-                    <span className={getStatusClass(row.estado)}>
-                      {row.estado}
-                    </span>
+              {isLoadingTable ? (
+                <tr>
+                  <td colSpan="4" style={{ textAlign: "center" }}>
+                    Cargando procesos...
                   </td>
                 </tr>
-              ))}
+              ) : processRows.length === 0 ? (
+                <tr>
+                  <td colSpan="4" style={{ textAlign: "center" }}>
+                    No hay procesos registrados.
+                  </td>
+                </tr>
+              ) : (
+                processRows.map((row) => (
+                  <tr key={row.id}>
+                    <td title={row.archivo}>{row.archivo}</td>
+                    <td>{row.fecha}</td>
+                    <td>{row.procesadoPor}</td>
+                    <td>
+                      <span className={getStatusClass(row.estado)}>
+                        {row.estado}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
