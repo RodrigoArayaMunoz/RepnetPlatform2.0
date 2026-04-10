@@ -1,0 +1,97 @@
+.ml-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 16, 40, 0.62);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.ml-modal-box {
+  width: min(92vw, 720px);
+  min-height: 320px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 28px;
+  text-align: center;
+  animation: modalFadeIn 0.22s ease;
+}
+
+.ml-logo-wrapper {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.ml-modal-logo {
+  width: min(100%, 520px);
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.ml-connect-btn {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  min-width: 280px;
+  padding: 16px 28px;
+  border-radius: 14px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  background: #ffe600; /* amarillo MercadoLibre */
+  color: #2d3277;      /* azul MercadoLibre */
+  box-shadow: 0 10px 24px rgba(255, 230, 0, 0.32);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.ml-connect-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(255, 230, 0, 0.42);
+}
+
+.ml-connect-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .ml-modal-box {
+    width: 94vw;
+    min-height: 280px;
+    padding: 28px 18px;
+    border-radius: 20px;
+  }
+
+  .ml-modal-logo {
+    width: min(100%, 360px);
+  }
+
+  .ml-connect-btn {
+    min-width: 100%;
+    font-size: 1rem;
+    padding: 15px 20px;
+  }
+}
