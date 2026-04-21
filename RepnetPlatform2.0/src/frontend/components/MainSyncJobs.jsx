@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import "../styles/MainSyncJobs.css";
 import { supabase } from "../../lib/supabase.js";
 import MercadoLibreConnectModal from "../components/MercadoLibreConnectModal.jsx";
+
+const SYNC_ROUTE = "/menu/procesos/sincronizacion";
 
 export default function MainSyncJobs() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -11,7 +14,19 @@ export default function MainSyncJobs() {
   const [isLoadingTable, setIsLoadingTable] = useState(true);
 
   const [isConnectingMl, setIsConnectingMl] = useState(false);
+  const [isCheckingMl, setIsCheckingMl] = useState(true);
   const [isMercadoLibreConnected, setIsMercadoLibreConnected] = useState(false);
+  const [mlUserId, setMlUserId] = useState(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const API_BASE =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  useEffect(() => {
+    console.log("[ML] API_BASE:", API_BASE);
+  }, [API_BASE]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -27,7 +42,38 @@ export default function MainSyncJobs() {
   }, []);
 
   useEffect(() => {
-    if (!isMercadoLibreConnected) {
+    const params = new URLSearchParams(location.search);
+    const meliConnected = params.get("meli");
+    const legacyConnected = params.get("ml_connected");
+    const returnedUserId = params.get("user_id");
+
+    console.log("[ML] Callback detectado:", {
+      pathname: location.pathname,
+      search: location.search,
+      meliConnected,
+      legacyConnected,
+      returnedUserId,
+    });
+
+    if (meliConnected === "connected" || legacyConnected === "1") {
+      checkMercadoLibreConnection();
+
+      params.delete("meli");
+      params.delete("ml_connected");
+      params.delete("user_id");
+
+      navigate(
+        {
+          pathname: SYNC_ROUTE,
+          search: params.toString() ? `?${params.toString()}` : "",
+        },
+        { replace: true }
+      );
+    }
+  }, [location.search, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!isCheckingMl && !isMercadoLibreConnected) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "auto";
@@ -36,7 +82,7 @@ export default function MainSyncJobs() {
     return () => {
       document.body.style.overflow = "auto";
     };
-  }, [isMercadoLibreConnected]);
+  }, [isCheckingMl, isMercadoLibreConnected]);
 
   const formattedDate = useMemo(() => {
     return now.toLocaleDateString("es-CL", {
@@ -119,66 +165,56 @@ export default function MainSyncJobs() {
 
   const checkMercadoLibreConnection = async () => {
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      setIsCheckingMl(true);
+      setIsMercadoLibreConnected(false);
+      setMlUserId(null);
 
-      if (userError) {
-        console.error("Error obteniendo usuario:", userError);
+      console.log("[ML] Verificando conexión en backend:", `${API_BASE}/ml/status`);
+
+      const res = await fetch(`${API_BASE}/ml/status`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      console.log("[ML] Respuesta /ml/status:", {
+        ok: res.ok,
+        status: res.status,
+        data,
+      });
+
+      if (res.ok && data?.connected === true) {
+        setIsMercadoLibreConnected(true);
+        setMlUserId(data?.user_id ? String(data.user_id) : null);
+      } else {
         setIsMercadoLibreConnected(false);
-        return;
+        setMlUserId(null);
       }
-
-      if (!user) {
-        setIsMercadoLibreConnected(false);
-        return;
-      }
-
-      // Ajusta esta consulta según cómo guardas el estado de conexión.
-      // Ejemplo 1: tabla perfiles con columna meli_connected
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("meli_connected")
-        .eq("id", user.id)
-        .single();
-
-      if (error) {
-        console.warn("No se pudo verificar conexión MercadoLibre:", error.message);
-        setIsMercadoLibreConnected(false);
-        return;
-      }
-
-      setIsMercadoLibreConnected(data?.meli_connected === true);
     } catch (error) {
       console.error("Error verificando conexión con MercadoLibre:", error);
       setIsMercadoLibreConnected(false);
-    }
-  };
-
-  const handleConnectMercadoLibre = async () => {
-    try {
-      setIsConnectingMl(true);
-
-      // Cambia esta URL por la real de tu backend OAuth
-      const apiUrl = import.meta.env.VITE_API_URL;
-
-
-      if (!apiUrl) {
-        alert("Falta configurar VITE_API_URL en tu archivo .env");
-        setIsConnectingMl(false);
-        return;
-      }
-
-      window.location.href = `${apiUrl}/meli/oauth/start`;
-    } catch (error) {
-      console.error("Error al iniciar conexión con MercadoLibre:", error);
-      alert("No se pudo iniciar la conexión con MercadoLibre.");
+      setMlUserId(null);
+    } finally {
+      setIsCheckingMl(false);
       setIsConnectingMl(false);
     }
   };
 
+  const handleConnectMercadoLibre = () => {
+    if (isCheckingMl || isMercadoLibreConnected) return;
+
+    setIsConnectingMl(true);
+    console.log("[ML] Redirigiendo a login OAuth:", `${API_BASE}/meli/oauth/login`);
+    window.location.href = `${API_BASE}/meli/oauth/login`;
+  };
+
   const handleSaveProcess = async () => {
+    if (!isMercadoLibreConnected) {
+      alert("Primero debes conectar Mercado Libre.");
+      return;
+    }
+
     if (!selectedFile) {
       alert("Debes seleccionar un archivo Excel antes de grabar el proceso.");
       return;
@@ -262,6 +298,11 @@ export default function MainSyncJobs() {
   };
 
   const handleGenerateProcesses = () => {
+    if (!isMercadoLibreConnected) {
+      alert("Primero debes conectar Mercado Libre.");
+      return;
+    }
+
     alert("Procesos generados correctamente.");
   };
 
@@ -286,7 +327,7 @@ export default function MainSyncJobs() {
   return (
     <>
       <MercadoLibreConnectModal
-        open={!isMercadoLibreConnected}
+        open={!isCheckingMl && !isMercadoLibreConnected}
         onConnect={handleConnectMercadoLibre}
         loading={isConnectingMl}
       />
@@ -303,6 +344,7 @@ export default function MainSyncJobs() {
                   accept=".xls,.xlsx,.csv"
                   onChange={handleFileChange}
                   className="main-sync-jobs__file-input"
+                  disabled={!isMercadoLibreConnected || isSaving}
                 />
                 <span className="main-sync-jobs__file-button">
                   Seleccionar archivo
@@ -329,7 +371,7 @@ export default function MainSyncJobs() {
               type="button"
               className="main-sync-jobs__save-button"
               onClick={handleSaveProcess}
-              disabled={isSaving}
+              disabled={isSaving || !isMercadoLibreConnected}
             >
               {isSaving ? "Grabando..." : "Grabar Proceso"}
             </button>
@@ -389,6 +431,7 @@ export default function MainSyncJobs() {
             type="button"
             className="main-sync-jobs__generate-button"
             onClick={handleGenerateProcesses}
+            disabled={!isMercadoLibreConnected}
           >
             Generar Procesos
           </button>

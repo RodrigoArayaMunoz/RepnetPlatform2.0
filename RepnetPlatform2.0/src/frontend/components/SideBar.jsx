@@ -11,7 +11,6 @@ import {
   LogOut,
 } from "lucide-react";
 import logo from "../../assets/repnetsolo_logo.png";
-import mlLogo from "../../assets/repnetmercadolibrepopup_logo-removebg-preview.png";
 import { supabase } from "../../lib/supabase.js";
 import "../styles/SideBar.css";
 
@@ -30,8 +29,6 @@ const navItems = [
   },
 ];
 
-const ML_CONNECTION_STORAGE_KEY = "repnet_ml_connected";
-
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,10 +37,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const [authLoading, setAuthLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
 
-  const [isMlConnected, setIsMlConnected] = useState(() => {
-    return localStorage.getItem(ML_CONNECTION_STORAGE_KEY) === "true";
-  });
-  const [connectingMl, setConnectingMl] = useState(false);
+  const [isMlConnected, setIsMlConnected] = useState(false);
+  const [mlStatusLoading, setMlStatusLoading] = useState(true);
 
   const getMenuStateFromPath = (pathname) => ({
     procesos: pathname.startsWith("/menu/procesos"),
@@ -93,6 +88,44 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
     };
   }, []);
 
+  // Verificar conexión con Mercado Libre en la tabla meli_global_connection
+  useEffect(() => {
+    if (authLoading || !userEmail) return;
+
+    let mounted = true;
+
+    const checkMlConnection = async () => {
+      setMlStatusLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("meli_global_connection")
+          .select("id, is_active")
+          .limit(1)
+          .maybeSingle();
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error("Error verificando conexión ML:", error);
+          setIsMlConnected(false);
+        } else {
+          setIsMlConnected(!!data && data.is_active === true);
+        }
+      } catch (err) {
+        console.error("Error inesperado verificando conexión ML:", err);
+        if (mounted) setIsMlConnected(false);
+      } finally {
+        if (mounted) setMlStatusLoading(false);
+      }
+    };
+
+    checkMlConnection();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authLoading, userEmail]);
+
   const toggleMenu = (key) => {
     setOpenMenus((prev) => ({
       procesos: key === "procesos" ? !prev.procesos : false,
@@ -104,21 +137,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const isGroupActive = (children) =>
     children.some((child) => location.pathname === child.to);
 
-  const handleConnectMercadoLibre = async () => {
-    try {
-      setConnectingMl(true);
-
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      setIsMlConnected(true);
-      localStorage.setItem(ML_CONNECTION_STORAGE_KEY, "true");
-    } catch (error) {
-      console.error("Error conectando con MercadoLibre:", error);
-    } finally {
-      setConnectingMl(false);
-    }
-  };
-
   const handleSignOut = async () => {
     try {
       if (signingOut) return;
@@ -126,7 +144,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
       setSigningOut(true);
 
       await supabase.auth.signOut();
-      localStorage.removeItem(ML_CONNECTION_STORAGE_KEY);
 
       setSidebarOpen(false);
       navigate("/", { replace: true });
@@ -138,34 +155,13 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   };
 
   const mlStatusLabel = useMemo(() => {
-    if (connectingMl) return "Conectando...";
+    if (mlStatusLoading) return "Verificando...";
     return isMlConnected ? "Conectado" : "No conectado";
-  }, [connectingMl, isMlConnected]);
+  }, [mlStatusLoading, isMlConnected]);
 
   return (
     <>
-      {!isMlConnected && (
-        <div className="ml-modal-overlay" aria-modal="true" role="dialog">
-          <div className="ml-modal">
-            <img
-              src={mlLogo}
-              alt="Repnet y Mercado Libre"
-              className="ml-modal__logo"
-            />
-
-            <button
-              type="button"
-              className="ml-modal__button"
-              onClick={handleConnectMercadoLibre}
-              disabled={connectingMl}
-            >
-              {connectingMl ? "Conectando..." : "Conectar con MercadoLibre"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className={!isMlConnected ? "page-blocked" : ""}>
+      <div>
         <div
           className={`sidebar-overlay ${sidebarOpen ? "sidebar-overlay--show" : ""}`}
           onClick={() => setSidebarOpen(false)}
@@ -188,7 +184,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </div>
 
           <div className="sidebar__card sidebar__card--user">
-            
+
 
             <div className="sidebar__user-row">
               <span className="sidebar__user-icon">
@@ -213,11 +209,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                   Estado Mercado Libre:
                 </span>
                 <span
-                  className={`sidebar__status-badge ${
-                    isMlConnected
+                  className={`sidebar__status-badge ${isMlConnected
                       ? "sidebar__status-badge--success"
                       : "sidebar__status-badge--danger"
-                  }`}
+                    }`}
                 >
                   {mlStatusLabel}
                 </span>
@@ -235,9 +230,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                 <div key={group.key} className="sidebar__group">
                   <button
                     type="button"
-                    className={`sidebar__group-button ${
-                      groupActive ? "sidebar__group-button--active" : ""
-                    }`}
+                    className={`sidebar__group-button ${groupActive ? "sidebar__group-button--active" : ""
+                      }`}
                     onClick={() => toggleMenu(group.key)}
                     aria-expanded={groupOpen}
                   >
@@ -258,9 +252,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                   </button>
 
                   <div
-                    className={`sidebar__submenu ${
-                      groupOpen ? "sidebar__submenu--open" : ""
-                    }`}
+                    className={`sidebar__submenu ${groupOpen ? "sidebar__submenu--open" : ""
+                      }`}
                   >
                     {group.children.map((item) => {
                       const ItemIcon = item.icon;
@@ -271,9 +264,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                           key={item.to}
                           to={item.to}
                           onClick={() => setSidebarOpen(false)}
-                          className={`sidebar__sublink ${
-                            active ? "sidebar__sublink--active" : ""
-                          }`}
+                          className={`sidebar__sublink ${active ? "sidebar__sublink--active" : ""
+                            }`}
                         >
                           <span className="sidebar__sublink-icon">
                             <ItemIcon size={18} />
